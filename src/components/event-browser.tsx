@@ -107,7 +107,7 @@ export function EventBrowser({ events: initialEvents }: Props) {
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ eventId: event.id, name: name.trim() }),
+        body: JSON.stringify({ eventId: event.id, name: action.kind === 'waitlist' ? name : name.trim() }),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Something went wrong. Please try again.');
@@ -117,9 +117,8 @@ export function EventBrowser({ events: initialEvents }: Props) {
       }
 
       if (action.kind === 'waitlist') {
-        const trimmedName = name.trim();
         const queue = waitlistQueues[event.id] ?? [];
-        const nextQueue = [...queue, trimmedName];
+        const nextQueue = [...queue, name];
         setWaitlistQueues((current) => ({
           ...current,
           [event.id]: nextQueue,

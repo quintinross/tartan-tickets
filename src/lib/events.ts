@@ -70,14 +70,9 @@ export function simulatePurchase(eventId: string, name: string): TicketEvent | u
   return { ...event };
 }
 
-export function joinWaitlist(eventId: string, name: string): 'joined' | 'duplicate' | 'unavailable' {
+export function joinWaitlist(eventId: string, name: string): 'joined' | 'unavailable' {
   const event = getEvent(eventId);
   if (!event || event.seatsRemaining > 0) return 'unavailable';
-
-  const alreadyJoined = store.waitlist.some(
-    (entry) => entry.eventId === eventId && entry.name.toLowerCase() === name.toLowerCase(),
-  );
-  if (alreadyJoined) return 'duplicate';
 
   store.waitlist.push({ eventId, name });
   return 'joined';
