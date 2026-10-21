@@ -89,3 +89,141 @@ describe('Story 1: Browse events', () => {
     }));
   });
 });
+
+describe('Story B: Waitlist Notification', () => {
+  it('lets a named student join a sold-out event waitlist and shows their queue position', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ message: 'You joined the waitlist for Autumn Social.' }), {
+        status: 201,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    render(<EventBrowser events={[{ ...availableEvent, seatsRemaining: 0 }]} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Join waitlist' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Your name' }), { target: { value: 'Alex' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm waitlist spot' }));
+
+    expect(await screen.findByText('You joined the waitlist for Autumn Social.')).toBeInTheDocument();
+    expect(await screen.findByText('You are #1 in line for Autumn Social.')).toBeInTheDocument();
+  });
+
+  it('sends a notification when a seat is released to the next waitlisted student', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ message: 'You joined the waitlist for Autumn Social.' }), {
+        status: 201,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    render(<EventBrowser events={[{ ...availableEvent, seatsRemaining: 0 }]} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Join waitlist' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Your name' }), { target: { value: 'Alex' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm waitlist spot' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Release next seat' }));
+
+    expect(await screen.findByText('Seat available for Alex. Claim it before it expires.')).toBeInTheDocument();
+  });
+
+  it('gives the waitlisted student a claim action when the seat opens', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ message: 'You joined the waitlist for Autumn Social.' }), {
+        status: 201,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    render(<EventBrowser events={[{ ...availableEvent, seatsRemaining: 0 }]} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Join waitlist' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Your name' }), { target: { value: 'Alex' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm waitlist spot' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Release next seat' }));
+
+    expect(await screen.findByRole('button', { name: 'Claim seat' })).toBeInTheDocument();
+  });
+
+  it('holds the seat until the student pays or declines it', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ message: 'You joined the waitlist for Autumn Social.' }), {
+        status: 201,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    render(<EventBrowser events={[{ ...availableEvent, seatsRemaining: 0 }]} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Join waitlist' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Your name' }), { target: { value: 'Alex' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm waitlist spot' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Release next seat' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Claim seat' }));
+
+    expect(await screen.findByText('Seat held for Alex. Pay or decline to keep it.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Pay now' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Decline seat' })).toBeInTheDocument();
+  });
+
+  it('expires the hold and offers the seat to the next student when the time is up', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ message: 'You joined the waitlist for Autumn Social.' }), {
+        status: 201,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    render(<EventBrowser events={[{ ...availableEvent, seatsRemaining: 0 }]} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Join waitlist' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Your name' }), { target: { value: 'Alex' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm waitlist spot' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Release next seat' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Claim seat' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Expire hold' }));
+
+    expect(await screen.findByText('The seat was released because the hold expired.')).toBeInTheDocument();
+  });
+
+  it('does not send duplicate notifications for the same seat release', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ message: 'You joined the waitlist for Autumn Social.' }), {
+        status: 201,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    render(<EventBrowser events={[{ ...availableEvent, seatsRemaining: 0 }]} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Join waitlist' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Your name' }), { target: { value: 'Alex' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm waitlist spot' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Release next seat' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Release next seat' }));
+
+    expect(screen.getAllByText('Seat available for Alex. Claim it before it expires.')).toHaveLength(1);
+  });
+
+  it('keeps waitlists separate across multiple events', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ message: 'You joined the waitlist for Autumn Social.' }), {
+        status: 201,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    const anotherEvent = { ...availableEvent, id: 'fall-sound-session', title: 'Fall Sound Session', seatsRemaining: 0 };
+    render(<EventBrowser events={[{ ...availableEvent, seatsRemaining: 0 }, anotherEvent]} />);
+
+    const joinButtons = screen.getAllByRole('button', { name: 'Join waitlist' });
+    fireEvent.click(joinButtons[0]);
+    fireEvent.change(screen.getByRole('textbox', { name: 'Your name' }), { target: { value: 'Alex' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm waitlist spot' }));
+
+    expect(await screen.findByText('You are #1 in line for Autumn Social.')).toBeInTheDocument();
+    expect(screen.getByText('Fall Sound Session')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Join waitlist' })).toHaveLength(2);
+  });
+
+  it('uses the waitlist flow when the event is sold out', async () => {
+    render(<EventBrowser events={[{ ...availableEvent, seatsRemaining: 0 }]} />);
+
+    expect(screen.getByRole('button', { name: 'Join waitlist' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Buy ticket' })).not.toBeInTheDocument();
+  });
+});

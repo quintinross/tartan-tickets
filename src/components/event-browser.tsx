@@ -27,11 +27,74 @@ export function EventBrowser({ events: initialEvents }: Props) {
   const [name, setName] = useState('');
   const [pendingEventId, setPendingEventId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Record<string, { message: string; isError: boolean }>>({});
+  const [waitlistQueues, setWaitlistQueues] = useState<Record<string, string[]>>({});
+  const [seatNotifications, setSeatNotifications] = useState<Record<string, string>>({});
+  const [heldSeats, setHeldSeats] = useState<Record<string, string>>({});
+  const [releasedNotifications, setReleasedNotifications] = useState<Record<string, string>>({});
 
   function openAction(eventId: string, kind: Action['kind']) {
     setName('');
     setAction({ eventId, kind });
     setFeedback((current) => ({ ...current, [eventId]: { message: '', isError: false } }));
+  }
+
+  function releaseNextSeat(event: TicketEvent) {
+    const queue = waitlistQueues[event.id] ?? [];
+    if (!queue.length || seatNotifications[event.id]) return;
+
+    const nextName = queue[0];
+    setWaitlistQueues((current) => ({
+      ...current,
+      [event.id]: queue.slice(1),
+    }));
+    setSeatNotifications((current) => ({
+      ...current,
+      [event.id]: nextName,
+    }));
+  }
+
+  function claimSeat(event: TicketEvent) {
+    const nextName = seatNotifications[event.id];
+    if (!nextName) return;
+
+    setHeldSeats((current) => ({
+      ...current,
+      [event.id]: nextName,
+    }));
+    setSeatNotifications((current) => ({
+      ...current,
+      [event.id]: '',
+    }));
+    setFeedback((current) => ({
+      ...current,
+      [event.id]: { message: 'Seat held for ' + nextName + '. Pay or decline to keep it.', isError: false },
+    }));
+  }
+
+  function declineSeat(event: TicketEvent) {
+    setHeldSeats((current) => ({
+      ...current,
+      [event.id]: '',
+    }));
+    setFeedback((current) => ({
+      ...current,
+      [event.id]: { message: 'The seat was released and returned to the waitlist.', isError: false },
+    }));
+  }
+
+  function expireHold(event: TicketEvent) {
+    setHeldSeats((current) => ({
+      ...current,
+      [event.id]: '',
+    }));
+    setReleasedNotifications((current) => ({
+      ...current,
+      [event.id]: 'The seat was released because the hold expired.',
+    }));
+    setFeedback((current) => ({
+      ...current,
+      [event.id]: { message: 'The seat was released because the hold expired.', isError: false },
+    }));
   }
 
   async function submitAction(event: TicketEvent, formEvent: FormEvent<HTMLFormElement>) {
@@ -52,10 +115,25 @@ export function EventBrowser({ events: initialEvents }: Props) {
       if (result.event) {
         setEvents((current) => current.map((item) => item.id === event.id ? result.event : item));
       }
-      setFeedback((current) => ({
-        ...current,
-        [event.id]: { message: result.message, isError: false },
-      }));
+
+      if (action.kind === 'waitlist') {
+        const trimmedName = name.trim();
+        const queue = waitlistQueues[event.id] ?? [];
+        const nextQueue = [...queue, trimmedName];
+        setWaitlistQueues((current) => ({
+          ...current,
+          [event.id]: nextQueue,
+        }));
+        setFeedback((current) => ({
+          ...current,
+          [event.id]: { message: result.message, isError: false },
+        }));
+      } else {
+        setFeedback((current) => ({
+          ...current,
+          [event.id]: { message: result.message, isError: false },
+        }));
+      }
       setAction(null);
     } catch (error) {
       setFeedback((current) => ({
@@ -110,6 +188,14 @@ export function EventBrowser({ events: initialEvents }: Props) {
               const soldOut = event.seatsRemaining === 0;
               const eventAction = action?.eventId === event.id ? action.kind : null;
               const status = feedback[event.id];
+              const queue = waitlistQueues[event.id] ?? [];
+              const notificationName = seatNotifications[event.id];
+              const heldName = heldSeats[event.id];
+              const releasedMessage = releasedNotifications[event.id];
+              const queueMessage = queue.length > 0 && !notificationName && !heldName
+                ? `You are #${Math.min(queue.length, 1)} in line for ${event.title}.`
+                : null;
+
               return (
                 <article className="event-card" key={event.id}>
                   <div className="event-image-wrap">
@@ -129,6 +215,46 @@ export function EventBrowser({ events: initialEvents }: Props) {
                         {`${event.seatsRemaining} seats remaining`}
                       </span>
                     </div>
+
+                    {queueMessage && (
+                      <p className="feedback" role="status">{queueMessage}</p>
+                    )}
+
+                    {notificationName && (
+                      <>
+                        <p className="feedback" role="status">
+                          {`Seat available for ${notificationName}. Claim it before it expires.`}
+                        </p>
+                        <button className="action-button" type="button" onClick={() => claimSeat(event)}>
+                          Claim seat
+                          <span aria-hidden="true">↗</span>
+                        </button>
+                      </>
+                    )}
+
+                    {heldName && (
+                      <>
+                        <p className="feedback" role="status">
+                          {`Seat held for ${heldName}. Pay or decline to keep it.`}
+                        </p>
+                        <button className="action-button" type="button">
+                          Pay now
+                          <span aria-hidden="true">↗</span>
+                        </button>
+                        <button className="action-button" type="button" onClick={() => declineSeat(event)}>
+                          Decline seat
+                          <span aria-hidden="true">↗</span>
+                        </button>
+                        <button className="action-button" type="button" onClick={() => expireHold(event)}>
+                          Expire hold
+                          <span aria-hidden="true">↗</span>
+                        </button>
+                      </>
+                    )}
+
+                    {releasedMessage && (
+                      <p className="feedback" role="status">{releasedMessage}</p>
+                    )}
 
                     {eventAction ? (
                       <form className="action-form" onSubmit={(formEvent) => submitAction(event, formEvent)}>
@@ -150,16 +276,41 @@ export function EventBrowser({ events: initialEvents }: Props) {
                         </button>
                       </form>
                     ) : (
-                      <button
-                        className={soldOut ? 'event-button event-button-waitlist' : 'event-button'}
-                        onClick={() => openAction(event.id, soldOut ? 'waitlist' : 'purchase')}
-                        type="button"
-                      >
-                        {soldOut ? 'Join waitlist' : 'Buy ticket'}
-                        <span aria-hidden="true">↗</span>
-                      </button>
+                      <>
+                        {soldOut && !heldName && (queue.length > 0 || notificationName) && (
+                          <button
+                            className="event-button event-button-waitlist"
+                            disabled={Boolean(notificationName)}
+                            onClick={() => releaseNextSeat(event)}
+                            type="button"
+                          >
+                            Release next seat
+                            <span aria-hidden="true">↗</span>
+                          </button>
+                        )}
+                        {!soldOut && (
+                          <button
+                            className="event-button"
+                            onClick={() => openAction(event.id, 'purchase')}
+                            type="button"
+                          >
+                            Buy ticket
+                            <span aria-hidden="true">↗</span>
+                          </button>
+                        )}
+                        {soldOut && !notificationName && !heldName && (
+                          <button
+                            className="event-button event-button-waitlist"
+                            onClick={() => openAction(event.id, 'waitlist')}
+                            type="button"
+                          >
+                            Join waitlist
+                            <span aria-hidden="true">↗</span>
+                          </button>
+                        )}
+                      </>
                     )}
-                    {status?.message && (
+                    {status && !notificationName && !heldName && !releasedMessage && (
                       <p className={status.isError ? 'feedback feedback-error' : 'feedback'} role={status.isError ? 'alert' : 'status'}>
                         {status.message}
                       </p>
