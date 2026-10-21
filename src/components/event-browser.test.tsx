@@ -294,4 +294,33 @@ describe('Story B: Waitlist Notification', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Join waitlist' }));
     expect(screen.getByRole('textbox', { name: 'Your name' })).toBeInTheDocument();
   });
+
+  it('renders a student name containing HTML as plain text in the seat notification', async () => {
+    const name = '<img src=x onerror=alert(1)>';
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ message: 'You joined the waitlist.' }), {
+        status: 201,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    const { container } = render(<EventBrowser events={[{ ...availableEvent, seatsRemaining: 0 }]} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Join waitlist' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Your name' }), { target: { value: name } });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm waitlist spot' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Release next seat' }));
+
+    expect(await screen.findByText(`Seat available for ${name}. Claim it before it expires.`)).toBeInTheDocument();
+    expect(container.querySelector('img')).not.toBeInTheDocument();
+  });
+
+  it('displays an event title containing HTML as plain text', () => {
+    const title = '<img src=x onerror=alert(1)>';
+    const { container } = render(
+      <EventBrowser events={[{ ...availableEvent, title, seatsRemaining: 0 }]} />,
+    );
+
+    expect(screen.getByRole('heading', { level: 3 }).textContent).toBe(title);
+    expect(container.querySelector('h3 img')).not.toBeInTheDocument();
+  });
 });

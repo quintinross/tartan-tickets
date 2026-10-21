@@ -35,7 +35,7 @@ All requirements use EARS syntax. Assumption IDs (A1–A12) refer to the list in
 - **SEC-17** The system shall collect only name, Andrew email, ticket status, and Stripe payment ID for each purchase. (A8)
 - **SEC-18** When 90 days have passed since an event ended, the system shall remove attendee names and emails from that event's records. (A8)
 - **SEC-19** The system shall allow attendee list exports only for officers of the hosting club, limited to name, email, and check-in status, and shall log every export.
-- **SEC-20** The system shall display all officer-entered text (event names, descriptions) as plain text so that it cannot run as code in another user's browser.
+- **SEC-20** When the system displays user-supplied text, including event names, descriptions, and student names, it shall render the text as plain text so that it cannot run as code in another user's browser.
 
 ## Audit logging
 
