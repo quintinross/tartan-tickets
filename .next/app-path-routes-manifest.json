@@ -1,7 +1,0 @@
-{
-  "/_not-found/page": "/_not-found",
-  "/api/waitlist/route": "/api/waitlist",
-  "/api/events/route": "/api/events",
-  "/api/orders/route": "/api/orders",
-  "/page": "/"
-}
